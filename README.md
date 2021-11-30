@@ -2,7 +2,7 @@
 
 自动生成模型restfulapi--陈嘉琅
 
-# Autorest  
+# Autorest
 
 
 > Author: galain1994  
@@ -10,9 +10,9 @@
 
 
 
-## Design  
+## Design
 
-- workflow: Restful API   
+- workflow: Restful API
 ```
 -> request -> restapi ->
 
@@ -26,20 +26,20 @@
 |-> delete -> instance_id -> instance.delete/session.delete
 ```    
 
-### APIManager  
+### APIManager
 
 
-- Features:  
-  - *Singleton*  
-  - *Manage Blueprints*  
-  - *Control Views*  
+- Features:
+    - *Singleton*
+    - *Manage Blueprints*
+    - *Control Views*
 
 
 
-### Serializer  
+### Serializer
 
 
-- Serializer:   
+- Serializer:
 ```
 serialize: instance -> dict -> converter -> filter -> result
 ```  
@@ -47,24 +47,24 @@ serialize: instance -> dict -> converter -> filter -> result
 
 
 
-- Deserializer:  
+- Deserializer:
 ```
 deserialize: dict -> filters -> validators -> converters ->
              -> get_by_id |-> instance(exist) -> update
                           |-> instance -> create
 ```    
 
-- Filters: 过滤字典的字段(也可用于serializer中)  
-    - IncludeFilter  从字典中筛选所需要的字段  
-    - ExcludeFilter  从字典中过滤所需要的字段  
+- Filters: 过滤字典的字段(也可用于serializer中)
+    - IncludeFilter  从字典中筛选所需要的字段
+    - ExcludeFilter  从字典中过滤所需要的字段
 
-- *params*:   
-    - *filter_list*: 过滤的字段列表  
-    - *name*: 过滤器名称(可为None)  
-    - *global_fields*: 全局字段  
+- *params*:
+    - *filter_list*: 过滤的字段列表
+    - *name*: 过滤器名称(可为None)
+    - *global_fields*: 全局字段
 
 
-## Usage  
+## Usage
 
 
 ### Serializer
@@ -96,9 +96,9 @@ class D(model):
 
 
 
-### Filter   
+### Filter
 
-####  IncludeFilter   
+####  IncludeFilter
 
 ```python
 
@@ -134,7 +134,7 @@ data = {
 }
 ```
 
-#### ExcludeFilter   
+#### ExcludeFilter
 
 
 ```python
@@ -163,24 +163,24 @@ data = {
 
 ```
 
-__对于instance对象具有同样的过滤效果__   
+__对于instance对象具有同样的过滤效果__
 
 
 
 
 
 ----------
-## Testing   
+## Testing
 
-current directory: `BPIT_flask_services`   
+current directory: `BPIT_flask_services`
 
-- Run Certain Test Function  
+- Run Certain Test Function
 ```shell
 pytest base/autorest/test_autorest.py::TestMultiModel::test_put -vv
 ```  
 
-  
-- Run all Tests  
+
+- Run all Tests
 ```shell
 pytest base -vv
 ```
