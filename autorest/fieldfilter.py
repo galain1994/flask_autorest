@@ -16,6 +16,7 @@ Usage:
 
 from itertools import chain
 from collections import defaultdict
+from sqlalchemy.orm import declarative_base
 
 
 __all__ = ['BaseFilter', 'ExcludeFilter', 'IncludeFilter']
@@ -25,7 +26,7 @@ class BaseFilter(object):
 
     _type = None
 
-    def __init__(self, filter_list=None, name=None, global_fields=None):
+    def __init__(self, filter_list=None, name=None, global_fields=None, subfil_type=None):
         self.name = name
         # 过滤的字段
         self.fields = []
@@ -35,6 +36,7 @@ class BaseFilter(object):
         self.global_fields = global_fields or []
         # 层级关系的字段
         self.relations = defaultdict(list)
+        self.subfil_type = subfil_type or type(self)
         if not filter_list:
             filter_list = []
         self._init_filter(filter_list)
@@ -47,7 +49,7 @@ class BaseFilter(object):
             elif _field:
                 self.fields.append(_field)
         for _relation, sub_fields in self.relations.items():
-            _filter = type(self)(sub_fields, _relation, self.global_fields)
+            _filter = self.subfil_type(sub_fields, _relation, self.global_fields)
             self.filters[_relation].append(_filter)
 
     def __repr__(self):
@@ -119,8 +121,10 @@ class IncludeFilter(BaseFilter):
         for item in d:
             data = {}
             for _field in extended_fields:
-                if _field in item:
-                    data[_field] = item[_field]
+                if isinstance(item, dict):
+                    data[_field] = item.get(_field, None)
+                else:
+                    data[_field] = getattr(item, _field, None)
             for relation, sub_filters in self.filters.items():
                 if relation in data:
                     for sub_filter in sub_filters:

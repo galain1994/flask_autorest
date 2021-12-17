@@ -31,6 +31,7 @@ class APIManager(metaclass=SingletonMeta):
     :param kwargs: key-word arguments to init app
     :type kwargs: dict-lick object
     """
+    _resources = {}
 
     def __init__(self, app=None, resources=None, url_prefix='/api', **kwargs):
         self.app = app
@@ -62,6 +63,7 @@ class APIManager(metaclass=SingletonMeta):
         """ 增加资源 """
         bp = self.create_api_blueprint(resource, **kwargs)
         self.blueprints.append(bp)
+        self._resources[resource.name] = resource
         return bp
 
     @staticmethod

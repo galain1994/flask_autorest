@@ -9,6 +9,7 @@ from sqlalchemy.schema import Table
 from sqlalchemy.inspection import inspect as sqla_inspect
 from sqlalchemy.ext.hybrid import hybrid_property
 from sqlalchemy.orm.attributes import InstrumentedAttribute
+from sqlalchemy.orm.properties import ColumnProperty
 from .errors import ValidationError, DeserializeError
 from .utils import try_custom_delete
 
@@ -60,9 +61,9 @@ def serialize(instance, filters=None,
 
     data = {}
     custom_attrs = [
-        attr.__name__
+        attr.key
         for attr in sqla_inspect(instance.__class__).all_orm_descriptors
-        if type(attr) == hybrid_property
+        if getattr(attr, 'prop', None) and isinstance(attr.prop, ColumnProperty)
     ]
     for attr in custom_attrs:
         data[attr] = getattr(instance, attr)
@@ -89,10 +90,10 @@ def serialize(instance, filters=None,
             if isinstance(relate_instances, (tuple, list)):
                 # many2many, one2many
                 data[relation] = [
-                    serialize(instance, sub_filters,
+                    serialize(rel_instance, sub_filters,
                               type_converters=type_converters,
                               column_converters=column_converters)
-                    for instance in relate_instances
+                    for rel_instance in relate_instances
                 ]
             else:
                 # many2one
