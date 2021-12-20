@@ -62,9 +62,9 @@ def dict2lines(records: (list, tuple), upper_key=None):
                     data[new_sub_key] = sub_value
             elif isinstance(value, (list, tuple)):
                 details = dict2lines(value, key)
-                line_one = details.pop(0)
-                data.update(line_one)
                 if details:
+                    line_one = details.pop(0)
+                    data.update(line_one)
                     other_lines.extend(details)
             else:
                 data[key] = value
