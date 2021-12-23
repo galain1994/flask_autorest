@@ -9,7 +9,6 @@ from sqlalchemy.schema import Table
 from sqlalchemy.inspection import inspect as sqla_inspect
 from sqlalchemy.ext.hybrid import hybrid_property
 from sqlalchemy.orm.attributes import InstrumentedAttribute
-from sqlalchemy.orm.properties import ColumnProperty
 from .errors import ValidationError, DeserializeError
 from .utils import try_custom_delete
 
@@ -60,13 +59,14 @@ def serialize(instance, filters=None,
         column_converters = {}
 
     data = {}
-    custom_attrs = [
-        attr.key
-        for attr in sqla_inspect(instance.__class__).all_orm_descriptors
-        if getattr(attr, 'prop', None) and isinstance(attr.prop, ColumnProperty)
-    ]
-    for attr in custom_attrs:
-        data[attr] = getattr(instance, attr)
+    custom_attrs = sqla_inspect(instance.__class__).all_orm_descriptors
+    for attr_key, attr_val in custom_attrs.items():
+        if getattr(attr_val, 'property', None) and \
+                'relationship' == getattr(attr_val.property, 'strategy_wildcard_key', None):
+            continue
+        if attr_val._is_internal_proxy:
+            continue
+        data[attr_key] = getattr(instance, attr_key)
     for col_name, column in instance.__table__.columns.items():
         value = getattr(instance, col_name, None)
         # 根据特定字段进行转化的key
