@@ -15,6 +15,7 @@ from .utils import try_custom_delete
 #: Types which should be considered columns of a model when iterating over all
 #: attributes of a model class.
 COLUMN_TYPES = (InstrumentedAttribute, hybrid_property)
+CLASS_ATTRS = {}
 
 
 def default_converter(x):
@@ -59,26 +60,24 @@ def serialize(instance, filters=None,
         column_converters = {}
 
     data = {}
-    custom_attrs = sqla_inspect(instance.__class__).all_orm_descriptors
-    for attr_key, attr_val in custom_attrs.items():
-        if getattr(attr_val, 'property', None) and \
-                'relationship' == getattr(attr_val.property, 'strategy_wildcard_key', None):
-            continue
-        if attr_val._is_internal_proxy:
-            continue
-        data[attr_key] = getattr(instance, attr_key)
-    for col_name, column in instance.__table__.columns.items():
-        value = getattr(instance, col_name, None)
-        # 根据特定字段进行转化的key
-        column_convert_key = '{table}.{column}'.format(
-            table=instance.__tablename__,
-            column=col_name
-        )
-        # 根据特定类型进行转换value
-        data[col_name] = default_type_converters[type(value)](value)
-        if column_convert_key in column_converters:
-            data[col_name] = column_converters[column_convert_key](
-                data[col_name])
+    if instance.__class__ in CLASS_ATTRS:
+        attrs = CLASS_ATTRS[instance.__class__]
+    else:
+        attrs = []
+        for attr_key, attr_val in sqla_inspect(instance.__class__).all_orm_descriptors.items():
+            if getattr(attr_val, 'property', None) and \
+                    'relationship' == getattr(attr_val.property, 'strategy_wildcard_key', None):
+                continue
+            if attr_val._is_internal_proxy:
+                continue
+            attrs.append(attr_key)
+        CLASS_ATTRS[instance.__class__] = tuple(attrs)
+    for attr in attrs:
+        value = getattr(instance, attr, None)
+        data[attr] = default_type_converters[type(value)](value)
+        col_convert_key = f"{instance.__table__}.{attr}"
+        if col_convert_key in column_converters:
+            data[attr] = column_converters[col_convert_key](data[attr])
     for _filter in filters:
         # 过滤自身的字段
         data = _filter.filter(data)
