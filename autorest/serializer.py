@@ -85,7 +85,7 @@ def serialize(instance, filters=None,
         for relation, sub_filters in _filter.filters.items():
             relate_instances = getattr(instance, relation, None)
             if not relate_instances:
-                continue
+                data[relation] = []
             if isinstance(relate_instances, (tuple, list)):
                 # many2many, one2many
                 data[relation] = [
