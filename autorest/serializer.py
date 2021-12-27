@@ -68,7 +68,7 @@ def serialize(instance, filters=None,
             if getattr(attr_val, 'property', None) and \
                     'relationship' == getattr(attr_val.property, 'strategy_wildcard_key', None):
                 continue
-            if attr_val._is_internal_proxy:
+            if attr_val._is_internal_proxy and attr_key not in instance.__mapper__.synonyms:
                 continue
             attrs.append(attr_key)
         CLASS_ATTRS[instance.__class__] = tuple(attrs)
