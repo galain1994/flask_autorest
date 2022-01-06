@@ -22,7 +22,7 @@ from flask import request
 from .operators import parse_filter
 
 
-FIXED_ARGS = ('format', 'q', 'order', 'limit', 'offset', 'pageNo', 'pageSize')
+FIXED_ARGS = ('format', 'q', 'order', 'limit', 'offset', 'pageNo', 'pageSize', 'fields')
 
 
 def create_filter(model, filter_dict):
