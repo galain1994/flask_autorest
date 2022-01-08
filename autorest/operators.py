@@ -93,5 +93,7 @@ OPERATORS = {
 
 def parse_filter(model, fieldname, operator, argument):
     opfunc = OPERATORS[operator]
-    field = getattr(model, fieldname)
+    field = getattr(model, fieldname, None)
+    if not field:
+        return None
     return opfunc(field, argument)

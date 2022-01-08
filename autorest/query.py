@@ -18,6 +18,7 @@ Purpose:
 import json
 import base64
 from sqlalchemy import and_, or_, desc, asc
+from sqlalchemy.sql.elements import BooleanClauseList
 from flask import request
 from .operators import parse_filter
 
@@ -27,11 +28,21 @@ FIXED_ARGS = ('format', 'q', 'order', 'limit', 'offset', 'pageNo', 'pageSize', '
 
 def create_filter(model, filter_dict):
     if 'or' in filter_dict:
+        _or_clause = []
         subfilters = filter_dict.get('or') or []
-        return or_(create_filter(model, d) for d in subfilters)
+        for d in subfilters:
+            _filter = create_filter(model, d)
+            if _filter:
+                _or_clause.append(_filter)
+        return or_(*_or_clause)
     if 'and' in filter_dict:
+        _and_clause = []
         subfilters = filter_dict.get('and') or []
-        return and_(create_filter(model, d) for d in subfilters)
+        for d in subfilters:
+            _filter = create_filter(model, d)
+            if _filter:
+                _and_clause.append(_filter)
+        return and_(*_and_clause)
     filedname = filter_dict.get('name')
     operator = filter_dict.get('op')
     argument = filter_dict.get('val')
@@ -112,7 +123,9 @@ def get_objects(model, query, order=None, limit=50, offset=0):
             direction = 'asc'
         else:
             fieldname, direction = fieldname_direction
-        field = getattr(model, fieldname)
+        field = getattr(model, fieldname, None)
+        if not field:
+            continue
         if 'desc' == direction:
             query = query.order_by(desc(field))
         else:
