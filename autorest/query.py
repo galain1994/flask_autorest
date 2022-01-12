@@ -18,7 +18,7 @@ Purpose:
 import json
 import base64
 from sqlalchemy import and_, or_, desc, asc
-from sqlalchemy.sql.elements import BooleanClauseList
+from sqlalchemy.sql.elements import ClauseElement
 from flask import request
 from .operators import parse_filter
 
@@ -32,7 +32,7 @@ def create_filter(model, filter_dict):
         subfilters = filter_dict.get('or') or []
         for d in subfilters:
             _filter = create_filter(model, d)
-            if _filter:
+            if isinstance(_filter, ClauseElement):
                 _or_clause.append(_filter)
         return or_(*_or_clause)
     if 'and' in filter_dict:
@@ -40,7 +40,7 @@ def create_filter(model, filter_dict):
         subfilters = filter_dict.get('and') or []
         for d in subfilters:
             _filter = create_filter(model, d)
-            if _filter:
+            if isinstance(_filter, ClauseElement):
                 _and_clause.append(_filter)
         return and_(*_and_clause)
     filedname = filter_dict.get('name')
