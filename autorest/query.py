@@ -51,16 +51,37 @@ def create_filter(model, filter_dict):
     return parse_filter(model, filedname, operator, argument)
 
 
+def parse_domain(domains):
+    """转化domain"""
+    try:
+        domains = json.loads(domains)
+    except json.JSONDecodeError:
+        return None
+    if domains:
+        return [
+            {
+                "name": _domain[0],
+                "op": _domain[1],
+                "val": _domain[2],
+            } for _domain in domains
+        ]
+
+
 def parse_old_school():
     conditions = []
     for k, v in request.args.items():
         if k in FIXED_ARGS or v == '':
             continue
-        conditions.append({
-            "name": k,
-            "op": "eq",
-            "val": v
-        })
+        if 'domains' == k:
+            domains = parse_domain(v)
+            if domains:
+                conditions.extend(domains)
+        else:
+            conditions.append({
+                "name": k,
+                "op": "eq",
+                "val": v
+            })
     if conditions:
         return json.dumps({"and": conditions})
     return "{}"

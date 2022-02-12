@@ -162,7 +162,8 @@ class ModelResource(MethodView):
         try:
             resp = meth(*args, **kwargs)
         except Exception as e:
-            self.session.rollback()
+            if self.session.is_active:
+                self.session.rollback()
             raise e
 
         if isinstance(resp, ResponseBase):  # There may be a better way to test
@@ -410,3 +411,7 @@ class ModelResource(MethodView):
         self.session.add_all(instances)
         self.session.commit()
         return Response(u"成功", 200)
+
+    def query(self):
+        """list方法的代替方法, instid=None"""
+        return self.dispatch_request(instid=None, relationname=None, relateid=None)

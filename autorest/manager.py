@@ -113,6 +113,7 @@ class APIManager(metaclass=SingletonMeta):
                                        view=resource_view, methods=allow_methods)
         self._add_instance_endpoint(bp, collection_name,
                                     view=resource_view, methods=allow_methods)
+        self._add_query_endpoint(bp, collection_name, view=resource.query)
         if add_relation_route:
             self._add_relation_endpoint(bp, collection_name,
                                         view=resource_view, methods=allow_methods)
@@ -168,3 +169,10 @@ class APIManager(metaclass=SingletonMeta):
         inst_methods = methods & INSTANCE_METHODS
         bp.add_url_rule('/{}/<instid>/<relationname>/<relateid>'.format(collection_name),
                         methods=inst_methods, view_func=view)
+
+    @staticmethod
+    def _add_query_endpoint(bp, collection_name, view):
+        """增加query方法
+        /[collection_name]/query
+        """
+        bp.add_url_rule('/{}/query'.format(collection_name), methods=('GET', ), view_func=view)
