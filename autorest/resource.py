@@ -106,7 +106,7 @@ class ModelResource(MethodView):
     representations = None
     method_decorators = (json_response, )
 
-    def __init__(self, model, session=None,
+    def __init__(self, model, session_fac=None,
                  serializer=None, deserializer=None,
                  allow_methods=None, primary_key='id', name=None,
                  *args, **kwargs):
@@ -130,7 +130,7 @@ class ModelResource(MethodView):
         if not name:
             name = model.__tablename__
         self.name = name
-        self.session = session
+        self.session = session_fac() if session_fac else None
         self.serializer = serializer
         self.deserializer = partial(deserializer, model=self.model, session=self.session)
         if allow_methods:
