@@ -106,8 +106,8 @@ class ModelResource(MethodView):
     representations = None
     method_decorators = (json_response, )
 
-    def __init__(self, model, session_fac=None,
-                 serializer=None, deserializer=None,
+    def __init__(self, model, session_fac,
+                 serializer, deserializer,
                  allow_methods=None, primary_key='id', name=None,
                  *args, **kwargs):
         """
@@ -130,9 +130,9 @@ class ModelResource(MethodView):
         if not name:
             name = model.__tablename__
         self.name = name
-        self.session = session_fac() if session_fac else None
+        self.session_fac = session_fac
         self.serializer = serializer
-        self.deserializer = partial(deserializer, model=self.model, session=self.session)
+        self.deserializer = partial(deserializer, model=self.model)
         if allow_methods:
             self.allow_methods = frozenset((m.upper() for m in allow_methods))
         else:
@@ -150,6 +150,8 @@ class ModelResource(MethodView):
         if meth is None and request.method == 'HEAD':
             meth = getattr(self, 'get', None)
         assert meth is not None, 'Unimplemented method %r' % request.method
+        session = self.session_fac()
+        kwargs.update(session=session)
 
         if isinstance(self.method_decorators, Mapping):
             decorators = self.method_decorators.get(request.method.lower(), [])
@@ -162,8 +164,7 @@ class ModelResource(MethodView):
         try:
             resp = meth(*args, **kwargs)
         except Exception as e:
-            if self.session.is_active:
-                self.session.rollback()
+            session.rollback()
             raise e
 
         if isinstance(resp, ResponseBase):  # There may be a better way to test
@@ -181,10 +182,10 @@ class ModelResource(MethodView):
 
         return resp
 
-    def list(self, model, q, order, limit, offset, format):
+    def list(self, model, q, order, limit, offset, format, session):
         """ List Records """
         # sqlalchemy query object
-        query = search(self.session, model, q, format)
+        query = search(session, model, q, format)
         total = query.count()
         instances = get_objects(model, query, order, limit, offset)
         if offset + limit < total:
@@ -193,7 +194,7 @@ class ModelResource(MethodView):
             has_next = False
         return total, has_next, instances
 
-    def get_inst_by_primary_key(self, value, model=None):
+    def get_inst_by_primary_key(self, value, model=None, **kwargs):
         """ 根据主键获取对象
         model == None 时, 根据当前resource定义的主键获取数据
         model指定时, 根据模型定义的主键获取数据
@@ -206,6 +207,7 @@ class ModelResource(MethodView):
             "shop_id": '3212',
         }
         """
+        session = kwargs['session']
         # 主键的keys
         if not model:
             model = self.model
@@ -218,11 +220,11 @@ class ModelResource(MethodView):
             pk_values = dict([kv.split('=') for kv in kvs])
         else:
             pk_values = dict.fromkeys(pks, value)
-        return self.session.query(model).filter(*[
+        return session.query(model).filter(*[
             getattr(model, pk) == pk_values.get(pk) for pk in pks
         ]).first()
 
-    def get(self, instid=None, relationname=None, relateid=None):
+    def get(self, instid=None, relationname=None, relateid=None, **kwargs):
         """ Get Record 
         instid == None: 返回全部
         instid != None: 
@@ -231,6 +233,7 @@ class ModelResource(MethodView):
                 relateid == None: 返回当前对象的当前relation所有对象的数据
                 relateid != None: 当指定relation_object与当前对象有关联才返回
         """
+        session = kwargs['session']
         if not instid:
             # 返回全部对象的数据
             format = request.args.get('format') or 'json'
@@ -243,10 +246,10 @@ class ModelResource(MethodView):
                 if page < 1:
                     page = 1
                 offset = (page-1) * limit
-            total, has_next, instances = self.list(self.model, q, order, limit, offset, format)
+            total, has_next, instances = self.list(self.model, q, order, limit, offset, format, session)
             return {'total': total, 'has_next': has_next, 'limit': limit, 'offset': offset,
                     'result': [self.serializer(inst) for inst in instances]}
-        rec = self.get_inst_by_primary_key(instid)
+        rec = self.get_inst_by_primary_key(instid, session=session)
         if not rec:
             # 未找到对象
             raise ResourceNotFoundException()
@@ -265,7 +268,7 @@ class ModelResource(MethodView):
             return [
                 relate_serializer(relate_object) for relate_object in relate_objects]
         relate_model = self.relationships[relationname]
-        relate_record = self.get_inst_by_primary_key(relateid, relate_model)
+        relate_record = self.get_inst_by_primary_key(relateid, relate_model, session=session)
         if relate_record.id not in allow_relate_ids:
             # 无法获取没有关联的其他对象
             raise RelateObjectError()
@@ -275,13 +278,14 @@ class ModelResource(MethodView):
     def put(self, instid=None, relationname=None, relateid=None,
             *args, **kwargs):
         """ Modify Records """
+        session = kwargs['session']
         data = kwargs.get('json_data') or {}
         instance = self.deserializer(data, instance_id=instid, primary_key=self.primary_key)
         if not instance.id:
-            self.session.rollback()
+            session.rollback()
             raise ResourceNotFoundException()
-        self.session.add(instance)
-        self.session.commit()
+        session.add(instance)
+        session.commit()
         return {"instance_id": instance.id}
 
     def patch(self, instid=None, relationname=None, relateid=None,
@@ -291,23 +295,25 @@ class ModelResource(MethodView):
     @try_load_json_data
     def post(self, *args, **kwargs):
         """ Create Records """
+        session = kwargs['session']
         data = kwargs.get('json_data') or {}
         instance = self.deserializer(data)
-        self.session.add(instance)
-        self.session.commit()
+        session.add(instance)
+        session.commit()
         return {'instance_id': instance.id}
 
-    def delete(self, instid=None, relationname=None, relateid=None):
+    def delete(self, instid=None, relationname=None, relateid=None, **kwargs):
         """ Delete Records """
         if not instid:
             raise ResourceNotFoundException()
-        rec = self.get_inst_by_primary_key(instid)
+        session = kwargs['session']
+        rec = self.get_inst_by_primary_key(instid, session=session)
         if not rec:
             raise ResourceNotFoundException()
         rec_id = rec.id
         if not relationname:
-            try_custom_delete(rec, self.session)
-            self.session.commit()
+            try_custom_delete(rec, session)
+            session.commit()
             return {"instance_id": rec_id}
         if relationname not in self.relationships:
             raise RelationshipError()
@@ -316,13 +322,13 @@ class ModelResource(MethodView):
             raise ResourceNotFoundException()
         allow_relate_ids = [obj.id for obj in relate_objects]
         relate_model = self.relationships[relationname]
-        relate_record = self.get_inst_by_primary_key(relateid, relate_model)
+        relate_record = self.get_inst_by_primary_key(relateid, relate_model, session=session)
         if relate_record.id not in allow_relate_ids:
             # 无法获取没有关联的其他对象
             raise RelateObjectError()
         delete_id = relate_record.id
-        try_custom_delete(relate_record, self.session)
-        self.session.commit()
+        try_custom_delete(relate_record, session)
+        session.commit()
         return {"instance_id": delete_id}
 
     def export(self, *args, **kwargs):
@@ -337,6 +343,7 @@ class ModelResource(MethodView):
                 yield data
             f_obj.close()
 
+        session = kwargs['session']
         fmt = request.args.get('format', 'csv')
         fields = request.args.get('fields', '')
         ids = request.args.get('ids', '')
@@ -356,7 +363,7 @@ class ModelResource(MethodView):
             field_filter = IncludeFilter(fields)
         else:
             field_filter = ExcludeFilter(['meta'])
-        records = [self.get_inst_by_primary_key(f'id={_id}') for _id in ids]
+        records = [self.get_inst_by_primary_key(f'id={_id}', session=session) for _id in ids]
         if not records:
             return ResponseBase("未找到相应数据".encode('utf-8'), 404)
         json_data = [
@@ -378,6 +385,7 @@ class ModelResource(MethodView):
 
     def import_(self, *args, **kwargs):
         """导入excel/csv的视图函数"""
+        session = kwargs['session']
         fmt = request.args.get('format')
         file = request.files.get('file')
         if not fmt:
@@ -400,7 +408,7 @@ class ModelResource(MethodView):
         instances = []
         for join_lines, record_line in records_data.items():
             try:
-                instance = self.deserializer(record_line, primary_key=self.primary_key)
+                instance = self.deserializer(record_line, primary_key=self.primary_key, session=session)
             except Exception as e:
                 logger.error(traceback.format_exc())
                 errors.append(f"数据序列化失败: 行:{join_lines}, {record_line}")
@@ -408,8 +416,8 @@ class ModelResource(MethodView):
                 instances.append(instance)
         if errors:
             return Response("失败的数据有: \n {}".format('\n'.join(errors)), 400)
-        self.session.add_all(instances)
-        self.session.commit()
+        session.add_all(instances)
+        session.commit()
         return Response(u"成功", 200)
 
     def query(self):

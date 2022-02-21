@@ -102,7 +102,7 @@ def serialize(instance, filters=None,
     return data
 
 
-def deserialize(data, model, session, instance_id=None, primary_key='id',
+def deserialize(data, model, session_fac, instance_id=None, primary_key='id',
                 filters=None, validators=None, column_converters=None):
     """ 反序列化: dict -> object(尚未在数据库创建)
 
@@ -126,6 +126,7 @@ def deserialize(data, model, session, instance_id=None, primary_key='id',
     for _filter in filters:
         data = _filter.filter(data)
 
+    session = session_fac()
     # 检测该模型是否有对应的字段
     inspected_model = sqla_inspect(model)
     descriptors = inspected_model.all_orm_descriptors._data
