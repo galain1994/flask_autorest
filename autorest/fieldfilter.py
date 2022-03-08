@@ -60,15 +60,16 @@ class BaseFilter(object):
         raise NotImplementedError()
 
     @staticmethod
-    def lazy_load(data):
-        lazy_cols = data.pop('__lazy__', [])
-        print(f"lazy: {lazy_cols}")
-        obj = data.pop('__obj__', None)
-        if not (obj and lazy_cols):
-            return data
-        for _col in lazy_cols:
-            data[_col] = getattr(obj, _col, None)
-        return data
+    def lazy_load(instance_obj, data, field_name):
+        """先从字典中取值,没有则从对象中取值"""
+        # if field_name == 'source_system':
+        #     import ipdb
+        #     ipdb.set_trace()
+        if field_name in data:
+            return data[field_name]
+        elif hasattr(instance_obj, field_name):
+            return getattr(instance_obj, field_name)
+        return None
 
     def filter(self, data):
         if not data:
@@ -103,10 +104,15 @@ class ExcludeFilter(BaseFilter):
             d = (d, )
             is_dict = True
         for item in d:
+            obj = item.pop('__obj__', None)
+            lazy_cols = item.pop('__lazy__', [])
             for _field in chain(self.fields, self.global_fields):
                 # 移除指定的字段
                 item.pop(_field, None)
-            item = self.lazy_load(item)
+                if _field in lazy_cols:
+                    lazy_cols.remove(_field)
+            for _field in lazy_cols:
+                item[_field] = self.lazy_load(obj, item, _field)
             for relation, _filters in self.filters.items():
                 if relation in item:
                     for _filter in _filters:
@@ -131,12 +137,14 @@ class IncludeFilter(BaseFilter):
             is_dict = True
         for item in d:
             data = {}
-            for _field in extended_fields:
-                if isinstance(item, dict):
-                    data[_field] = item.get(_field, None)
-                else:
+            obj = item.pop('__obj__', None)
+            item.pop('__lazy__', [])
+            if isinstance(item, dict):
+                for _field in extended_fields:
+                    data[_field] = self.lazy_load(obj, item, _field)
+            else:
+                for _field in extended_fields:
                     data[_field] = getattr(item, _field, None)
-            data = self.lazy_load(item)
             for relation, sub_filters in self.filters.items():
                 if relation in data:
                     for sub_filter in sub_filters:
