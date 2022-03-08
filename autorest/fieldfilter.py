@@ -21,6 +21,10 @@ from collections import defaultdict
 __all__ = ['BaseFilter', 'ExcludeFilter', 'IncludeFilter']
 
 
+def default_converter(x):
+    return x
+
+
 class BaseFilter(object):
 
     _type = None
@@ -62,19 +66,28 @@ class BaseFilter(object):
     @staticmethod
     def lazy_load(instance_obj, data, field_name):
         """先从字典中取值,没有则从对象中取值"""
-        # if field_name == 'source_system':
-        #     import ipdb
-        #     ipdb.set_trace()
         if field_name in data:
             return data[field_name]
         elif hasattr(instance_obj, field_name):
             return getattr(instance_obj, field_name)
         return None
 
-    def filter(self, data):
+    def filter(self, data, column_converters=None, type_converters=None):
         if not data:
             return data
-        return self._filter_dict(data)
+        _table = data.pop('__table__', None)
+        data = self._filter_dict(data)
+        default_type_converters = defaultdict(lambda: default_converter)
+        if not column_converters:
+            column_converters = {}
+        if type_converters:
+            default_type_converters.update(type_converters)
+        for attr in data.keys():
+            data[attr] = default_type_converters[type(data[attr])](data[attr])
+            col_convert_key = f"{_table}.{attr}"
+            if col_convert_key in column_converters:
+                data[attr] = column_converters[col_convert_key](data[attr])
+        return data
 
 
 class ExcludeFilter(BaseFilter):

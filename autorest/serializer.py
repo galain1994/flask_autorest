@@ -54,13 +54,12 @@ def serialize(instance, filters=None,
         return {}
     if not filters:
         filters = []
-    default_type_converters = defaultdict(lambda: default_converter)
-    if type_converters:
-        default_type_converters.update(type_converters)
-    if not column_converters:
-        column_converters = {}
 
-    data = {'__obj__': instance, '__lazy__': []}
+    data = {
+        '__obj__': instance,
+        '__lazy__': [],
+        '__table__': str(instance.__table__)
+    }
     if instance.__class__ in CLASS_ATTRS:
         attrs = CLASS_ATTRS[instance.__class__]
         data['__lazy__'] = CLASS_LAZY_ATTRS[instance.__class__]
@@ -79,14 +78,10 @@ def serialize(instance, filters=None,
         CLASS_ATTRS[instance.__class__] = tuple(attrs)
         CLASS_LAZY_ATTRS[instance.__class__] = tuple(data['__lazy__'])
     for attr in attrs:
-        value = getattr(instance, attr, None)
-        data[attr] = default_type_converters[type(value)](value)
-        col_convert_key = f"{instance.__table__}.{attr}"
-        if col_convert_key in column_converters:
-            data[attr] = column_converters[col_convert_key](data[attr])
+        data[attr] = getattr(instance, attr, None)
     for _filter in filters:
         # 过滤自身的字段
-        data = _filter.filter(data)
+        data = _filter.filter(data, column_converters, type_converters)
         # 过滤关联模型的字段
         for relation, sub_filters in _filter.filters.items():
             relate_instances = getattr(instance, relation, None)
@@ -129,14 +124,15 @@ def deserialize(data, model, session_fac, instance_id=None, primary_key='id',
     if not filters:
         filters = []
 
+    data['__table__'] = str(model.__tablename__)
     for _filter in filters:
-        data = _filter.filter(data)
+        data = _filter.filter(data, column_converters)
 
     session = session_fac()
     # 检测该模型是否有对应的字段
     inspected_model = sqla_inspect(model)
     descriptors = inspected_model.all_orm_descriptors._data
-    for key, value in data.items():
+    for key in data.keys():
         if (key in descriptors and not getattr(descriptors[key], 'fset', None)) and \
                 not hasattr(model, key):
             raise ValidationError(f"{model} does not have field {key}")
@@ -145,18 +141,11 @@ def deserialize(data, model, session_fac, instance_id=None, primary_key='id',
         validator(data)
 
     instance_data = {}
-    cols = get_columns(model)
+    # cols = get_columns(model)
     relations = get_relations(model)
     data_keys = data.keys()
 
-    instance_columns = set(cols.keys()).intersection(data_keys).difference(relations.keys())
-    for col_name in instance_columns:
-        # 根据converters转化value
-        convert_key = f"{model.__tablename__}.{col_name}"
-        if convert_key in column_converters:
-            instance_data[col_name] = column_converters[convert_key](data[col_name])
-        else:
-            instance_data[col_name] = data[col_name]
+    # instance_columns = set(cols.keys()).intersection(data_keys).difference(relations.keys())
 
     # 删除主键值
     instance_id = instance_id or instance_data.pop(primary_key, None)
