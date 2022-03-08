@@ -16,6 +16,7 @@ from .utils import try_custom_delete
 #: attributes of a model class.
 COLUMN_TYPES = (InstrumentedAttribute, hybrid_property)
 CLASS_ATTRS = {}
+CLASS_LAZY_ATTRS = {}
 
 
 def default_converter(x):
@@ -59,9 +60,10 @@ def serialize(instance, filters=None,
     if not column_converters:
         column_converters = {}
 
-    data = {}
+    data = {'__obj__': instance, '__lazy__': []}
     if instance.__class__ in CLASS_ATTRS:
         attrs = CLASS_ATTRS[instance.__class__]
+        data['__lazy__'] = CLASS_LAZY_ATTRS[instance.__class__]
     else:
         attrs = []
         for attr_key, attr_val in sqla_inspect(instance.__class__).all_orm_descriptors.items():
@@ -70,8 +72,12 @@ def serialize(instance, filters=None,
                 continue
             if attr_val._is_internal_proxy and attr_key not in instance.__mapper__.synonyms:
                 continue
-            attrs.append(attr_key)
+            if not isinstance(attr_val, InstrumentedAttribute):
+                data['__lazy__'].append(attr_key)
+            else:
+                attrs.append(attr_key)
         CLASS_ATTRS[instance.__class__] = tuple(attrs)
+        CLASS_LAZY_ATTRS[instance.__class__] = tuple(data['__lazy__'])
     for attr in attrs:
         value = getattr(instance, attr, None)
         data[attr] = default_type_converters[type(value)](value)

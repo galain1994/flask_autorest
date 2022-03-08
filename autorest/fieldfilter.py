@@ -16,7 +16,6 @@ Usage:
 
 from itertools import chain
 from collections import defaultdict
-from sqlalchemy.orm import declarative_base
 
 
 __all__ = ['BaseFilter', 'ExcludeFilter', 'IncludeFilter']
@@ -60,6 +59,17 @@ class BaseFilter(object):
     def _filter_dict(self, d):
         raise NotImplementedError()
 
+    @staticmethod
+    def lazy_load(data):
+        lazy_cols = data.pop('__lazy__', [])
+        print(f"lazy: {lazy_cols}")
+        obj = data.pop('__obj__', None)
+        if not (obj and lazy_cols):
+            return data
+        for _col in lazy_cols:
+            data[_col] = getattr(obj, _col, None)
+        return data
+
     def filter(self, data):
         if not data:
             return data
@@ -96,6 +106,7 @@ class ExcludeFilter(BaseFilter):
             for _field in chain(self.fields, self.global_fields):
                 # 移除指定的字段
                 item.pop(_field, None)
+            item = self.lazy_load(item)
             for relation, _filters in self.filters.items():
                 if relation in item:
                     for _filter in _filters:
@@ -125,6 +136,7 @@ class IncludeFilter(BaseFilter):
                     data[_field] = item.get(_field, None)
                 else:
                     data[_field] = getattr(item, _field, None)
+            data = self.lazy_load(item)
             for relation, sub_filters in self.filters.items():
                 if relation in data:
                     for sub_filter in sub_filters:
