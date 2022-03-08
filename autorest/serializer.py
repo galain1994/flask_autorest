@@ -76,7 +76,7 @@ def serialize(instance, filters=None,
             else:
                 attrs.append(attr_key)
         CLASS_ATTRS[instance.__class__] = tuple(attrs)
-        CLASS_LAZY_ATTRS[instance.__class__] = tuple(data['__lazy__'])
+        CLASS_LAZY_ATTRS[instance.__class__] = data['__lazy__']
     for attr in attrs:
         data[attr] = getattr(instance, attr, None)
     for _filter in filters:
