@@ -137,7 +137,9 @@ def get_objects(model, query, order=None, limit=50, offset=0):
     # 顺序
     if not order:
         order = ''
-    criterions = [criterion.split('.') for criterion in str(order).split(',') if criterion]
+    criterions = [criterion.split(' ')
+                  for criterion in str(order).replace(', ', ',').split(',')
+                  if criterion]
     for fieldname_direction in criterions:
         if 1 == len(fieldname_direction):
             fieldname = fieldname_direction[0]
