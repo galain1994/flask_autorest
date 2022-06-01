@@ -1,5 +1,8 @@
 # -*- coding: utf-8 -*-
 
+import sqlalchemy as sa
+
+
 __all__ = ['OPERATORS', 'parse_filter']
 
 
@@ -102,4 +105,6 @@ def parse_filter(model, fieldname, operator, argument):
     field = getattr(model, fieldname, None)
     if not field:
         return None
+    if isinstance(field.type, sa.Integer) and argument.isdigit():
+        argument = int(argument)
     return opfunc(field, argument)
