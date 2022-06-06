@@ -234,6 +234,9 @@ class ModelResource(MethodView):
                 relateid != None: 当指定relation_object与当前对象有关联才返回
         """
         session = kwargs['session']
+        # 兼容主键含斜杠/特殊字段，无法从URL正常路由，换成从query string获取
+        if request.args.get('primary_key_in_query'):
+            instid = request.args.get(self.primary_key)
         if not instid:
             # 返回全部对象的数据
             format = request.args.get('format') or 'json'
