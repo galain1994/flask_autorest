@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 import json
-from datetime import datetime
+from datetime import datetime, date
 from functools import wraps
 from werkzeug.exceptions import BadRequest
 from flask import request, current_app
@@ -155,7 +155,12 @@ def format_time(dt: datetime, fmt: str = "%Y-%m-%d %H:%M:%S"):
     return dt.strftime(fmt)
 
 
+def format_date(dt: date, fmt: str = "%Y-%m-%d"):
+    return dt.strftime(fmt)
+
+
 default_type_converters = {
     datetime: format_time,
+    date: format_date,
     Decimal: float
 }
