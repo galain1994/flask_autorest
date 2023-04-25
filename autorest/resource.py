@@ -109,6 +109,7 @@ class ModelResource(MethodView):
     def __init__(self, model, session_fac,
                  serializer, deserializer,
                  allow_methods=None, primary_key='id', name=None,
+                 export_max_size=500,
                  *args, **kwargs):
         """
         Create Resource from model, also create blueprints and views.
@@ -138,6 +139,7 @@ class ModelResource(MethodView):
         else:
             self.allow_methods = DEFAULT_METHOD
         self.primary_key = primary_key
+        self.export_max_size = export_max_size
         self.relationships = get_relations(self.model)
         self.relate_serializer = defaultdict(lambda: serializer)
         if kwargs.get('relate_serializer'):
@@ -346,12 +348,19 @@ class ModelResource(MethodView):
                 yield data
             f_obj.close()
 
-        session = kwargs['session']
+        session = self.session_fac()
         fmt = request.args.get('format', 'csv')
         fields = request.args.get('fields', '')
-        ids = request.args.get('ids', '')
-        if not ids:
-            return ResponseBase("提供导出数据的ids".encode('utf-8'), 400)
+        q = request.args.get('q') or "{}"
+        order = request.args.get('order')
+
+        offset = int(request.args.get('offset') or 0)
+        if not offset:
+            page = int(request.args.get('pageNo') or 1)
+            if page < 1:
+                page = 1
+            offset = (page-1) * self.export_max_size
+
         if 'csv' == fmt:
             mimetype = 'text/csv'
             suffix = 'csv'
@@ -360,13 +369,15 @@ class ModelResource(MethodView):
             suffix = 'xlsx'
         else:
             return ResponseBase("格式只允许是excel/csv".encode('utf-8'), 400)
-        ids = ids.split(',')
         if fields:
             fields = fields.split(',')
             field_filter = IncludeFilter(fields)
         else:
             field_filter = ExcludeFilter(['meta'])
-        records = [self.get_inst_by_primary_key(f'id={_id}', session=session) for _id in ids]
+
+        total, has_next, records = self.list(
+            self.model, q, order, self.export_max_size, offset, 'json', session
+        )
         if not records:
             return ResponseBase("未找到相应数据".encode('utf-8'), 404)
         json_data = [
@@ -376,6 +387,8 @@ class ModelResource(MethodView):
         ]
         lines = dict2lines(json_data)
         export_data = lines2export(lines)
+        if has_next:
+            export_data.append(['由于数据条数限制,剩余数据未导出..'])
         f_obj = export2file(export_data, fmt)
         return Response(
             generate_file(f_obj),
