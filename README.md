@@ -1,13 +1,9 @@
 # BPIT_flask_autorest
 
-自动生成模型restfulapi--陈嘉琅
-
 # Autorest
 
 
 > Author: galain1994  
-> Reference: Restless
-
 
 
 ## Design
